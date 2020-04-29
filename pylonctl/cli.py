@@ -1,8 +1,11 @@
+import fnmatch
 import logging
 
 import click
 
-from .tool import Camera, prop_list_table, iacquire, transport_factory
+from .tool import Camera
+from .tool import obj_tree, obj_table
+from .tool import prop_list_table, iacquire, transport_factory
 
 
 @click.group()
@@ -56,6 +59,29 @@ def info(ctx):
     click.echo('{!r}'.format(cam))
 
 
+@camera.command("tree")
+@click.option('--filter', type=str, default='*')
+@click.pass_context
+def tree(ctx, filter):
+    cam = ctx.obj['camera']
+    filt = lambda o: fnmatch.fnmatch(o[0], filter)
+    with cam:
+        tree = obj_tree(cam, filt=filt)
+    click.echo(tree)
+
+
+@camera.command("table")
+@click.option('--filter', type=str, default='*')
+@click.pass_context
+def table(ctx, filter):
+    cam = ctx.obj['camera']
+    filt = lambda o: fnmatch.fnmatch(o[0], filter)
+    width = click.get_terminal_size()[0]
+    with cam:
+        table = obj_table(cam, max_width=width, filt=filt)
+    click.echo(table)
+
+
 @camera.command("acquire")
 @click.option('-n', '--nb-frames', default=10)
 @click.option('-e', '--exposure', default=0.1)
@@ -74,6 +100,12 @@ def acquire(ctx, nb_frames, exposure, latency):
                 print(f"buffer shape={img.shape} dtype={img.dtype}")   
             result.Release()
 
+
+@camera.command("gui")
+@click.pass_context
+def camera_gui(ctx):
+    from .gui import main
+    main(ctx.obj['camera'])
 
 
 if __name__ == "__main__":
