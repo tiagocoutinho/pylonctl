@@ -165,6 +165,19 @@ def obj_table(obj, max_width=80, filt=None):
     return table
 
 
+def iter_obj_value_display(obj, filt=None):
+    if filt is None:
+        def f(o):
+            return o[1].GetAccessMode() in {RO, RW}
+    else:
+        def f(o):
+            return o[1].GetAccessMode() in {RO, RW} and filt(o)
+    for name, value in iter_obj_values(obj, filt=f):
+        if v_is_value(value):
+            vd = v_dict(value)
+            yield v_display(vd)
+
+
 def obj_prop_names(obj, filt=None):
     names = obj.GetPropertyNames()[1]
     if filt:

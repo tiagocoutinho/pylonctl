@@ -4,7 +4,7 @@ import logging
 import click
 
 from .tool import Camera
-from .tool import obj_tree, obj_table
+from .tool import obj_tree, obj_table, iter_obj_value_display
 from .tool import prop_list_table, iacquire, transport_factory
 
 
@@ -16,7 +16,7 @@ from .tool import prop_list_table, iacquire, transport_factory
 @click.pass_context
 def cli(ctx, log_level):
     ctx.ensure_object(dict)
-    fmt = '%(asctime)s %(levelname)s %(threadName)s %(name)s: %(message)s' 
+    fmt = '%(asctime)s %(levelname)s %(threadName)s %(name)s: %(message)s'
     logging.basicConfig(level=log_level.upper(), format=fmt)
 
 
@@ -36,13 +36,13 @@ def transport_list():
 @cli.command("list")
 def device_list():
     dev_info_list = transport_factory().EnumerateDevices()
-    width = click.get_terminal_size()[0]    
+    width = click.get_terminal_size()[0]
     table = prop_list_table(*dev_info_list, max_width=width)
     click.echo(table)
 
 
 @cli.group("camera")
-@click.option('--host', type=str) 
+@click.option('--host', type=str)
 @click.pass_context
 def camera(ctx, host):
     camera = Camera.from_host(host)
@@ -57,6 +57,17 @@ def camera(ctx, host):
 def info(ctx):
     cam = ctx.obj['camera']
     click.echo('{!r}'.format(cam))
+
+
+@camera.command("values")
+@click.option('--filter', type=str, default='*')
+@click.pass_context
+def values(ctx, filter):
+    cam = ctx.obj['camera']
+    filt = lambda o: fnmatch.fnmatch(o[0], filter)
+    with cam:
+        for text in iter_obj_value_display(cam, filt=filt):
+            click.echo(text)
 
 
 @camera.command("tree")
@@ -97,7 +108,7 @@ def acquire(ctx, nb_frames, exposure, latency):
                 print("SizeX: ", result.Width)
                 print("SizeY: ", result.Height)
                 img = result.Array
-                print(f"buffer shape={img.shape} dtype={img.dtype}")   
+                print(f"buffer shape={img.shape} dtype={img.dtype}")
             result.Release()
 
 
