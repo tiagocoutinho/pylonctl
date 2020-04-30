@@ -18,8 +18,8 @@ def get_readme(name='README.md'):
 
 readme = get_readme()
 
-requirements = ['click', 'prompt_toolkit>=3', 'beautifultable', 'treelib',
-                'pypylon', 'numpy', 'PyQt5']
+requirements = ['click', 'prompt_toolkit>=3', 'beautifultable', 'wcwidth',
+                'chronometer', 'treelib', 'pypylon', 'numpy', 'PyQt5']
 
 test_requirements = ['pytest', 'pytest-cov']
 

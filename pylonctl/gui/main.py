@@ -5,10 +5,10 @@ from PyQt5 import Qt, uic
 import pyqtgraph
 import pkg_resources
 
-from pylonctl.tool import Camera, iacquire
+from pylonctl.camera import Camera, iacquire
 
 
-UI = pkg_resources.resource_filename('pylonctl', 'gui.ui')
+UI = pkg_resources.resource_filename('pylonctl.gui', 'gui.ui')
 
 
 def acq_loop(camera, source, nb_frames, exposure, latency):
@@ -55,6 +55,7 @@ def load_gui(widget=None, camera=None, source=None):
     def on_frame(frame):
         try:
             if frame.GrabSucceeded():
+                print(frame.Array)
                 widget.img.setImage(frame.Array)
         except:
             pass
