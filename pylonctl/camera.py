@@ -13,19 +13,28 @@ def transport_factory(factory=None):
     return pylon.TlFactory.GetInstance() if factory is None else factory
 
 
-def get_icamera_from_dev_info(dev_info, factory=None):
+def get_device_from_info(dev_info, factory=None):
     factory = transport_factory(factory)
-    dev = factory.CreateDevice(dev_info)
+    return factory.CreateDevice(dev_info)
+
+
+def get_icamera_from_dev_info(dev_info, factory=None):
+    dev = get_device_from_info(dev_info, factory)
     return pylon.InstantCamera(dev)
 
 
-def get_icamera_from(factory=None, **kwargs):
+def get_device_from(factory=None, **kwargs):
     di = pylon.DeviceInfo()
     for key, value in kwargs.items():
         if key == 'IpAddress':
             value = socket.gethostbyname(value)
         getattr(di, 'Set'+key)(value)
-    return get_icamera_from_dev_info(di, factory)
+    return get_device_from_info(di, factory)
+
+
+def get_icamera_from(factory=None, **kwargs):
+    dev = get_device_from(factory=factory, **kwargs)
+    return pylon.InstantCamera(dev)
 
 
 class Camera:
@@ -66,6 +75,16 @@ class Camera:
     def from_host(cls, ip_or_hostname):
         return cls(get_icamera_from(IpAddress=ip_or_hostname))
 
+    def register_configuration(
+            self, config, mode=pylon.RegistrationMode_ReplaceAll,
+            clean_up=pylon.Cleanup_Delete):
+        self.icam.RegisterConfiguration(config, mode, clean_up)
+
+    def register_image_event_handler(
+            self, handler, mode=pylon.RegistrationMode_ReplaceAll,
+            clean_up=pylon.Cleanup_Delete):
+        self.icam.RegisterImageEventHandler(handler, mode, clean_up)
+
 
 @contextlib.contextmanager
 def ensure_grab_stop(camera):
@@ -75,7 +94,7 @@ def ensure_grab_stop(camera):
         camera.StopGrabbing()
 
 
-def prepare_acq(camera, nb_frames, exposure, latency, roi=None):
+def prepare_acq(camera, nb_frames, exposure, latency, roi=None, binning=None):
     camera.ExposureTimeAbs = exposure * 1E6
     if latency < 1e-6:
         camera.AcquisitionFrameRateEnable = False
@@ -84,6 +103,10 @@ def prepare_acq(camera, nb_frames, exposure, latency, roi=None):
         period = latency + exposure
         camera.AcquisitionFrameRateAbs = 1 / period
     ww, hh = camera.Width.Value, camera.Height.Value
+    if binning is not None:
+        bh, bv = binning
+        camera.BinningHorizontal = bh
+        camera.BinningVertical = bv
     if roi is not None:
         x, y, w, h = roi
         if ww > w:
@@ -100,32 +123,80 @@ def prepare_acq(camera, nb_frames, exposure, latency, roi=None):
             camera.Height = h
 
 
-def iter_acquire(camera, nb_frames, exposure, latency):
-    if nb_frames:
-        camera.StartGrabbingMax(nb_frames)
-    else:
-        camera.StartGrabbing()
-    period = exposure + latency
-    period_ms = int(period * 1000)
-    with ensure_grab_stop(camera):
-        while camera.IsGrabbing():
-            yield camera.RetrieveResult(
-                period_ms + 100, pylon.TimeoutHandling_ThrowException)
-
-
 class Acquisition:
 
-    def __init__(self, camera):
+    def __init__(self, camera, nb_frames, exposure, latency, roi=None, binning=None):
         self.camera = camera
-
-    def prepare(self, nb_frames, exposure, latency, roi=None):
         self.nb_frames = nb_frames
         self.exposure = exposure
         self.latency = latency
-        prepare_acq(self.camera, nb_frames, exposure, latency, roi)
+        self.period = exposure + latency
+        self.roi = roi
+        self.binning = binning
+        self.prepare = functools.partial(
+            prepare_acq, camera, nb_frames, exposure, latency, roi, binning)
+        if nb_frames:
+            self.start = functools.partial(camera.StartGrabbingMax, nb_frames)
+        else:
+            self.start = camera.StartGrabbing
 
     def __iter__(self):
-        return iter_acquire(self.camera, self.nb_frames, self.exposure, self.latency)
+        camera = self.camera
+        wait_ms = int(self.period * 1000) + 250
+        with ensure_grab_stop(camera):
+            while camera.IsGrabbing():
+                yield camera.RetrieveResult(
+                    wait_ms, pylon.TimeoutHandling_ThrowException)
+
+    def __enter__(self):
+        self.prepare()
+        return self
+
+    def __exit__(self, exc_type, exc_value, tb):
+        pass
+
+
+class Configuration(pylon.ConfigurationEventHandler):
+
+    packet_size = 1500
+    inter_packet_delay = 0
+    frame_transmission_delay = 0
+    output_queue_size = 5
+
+    def OnOpened(self, camera):
+        log = logging.getLogger(camera.GetDeviceInfo().GetFullName())
+        log.debug('OnOpened: Preparing network parameters')
+        camera.GevSCPSPacketSize = self.packet_size
+        camera.GevSCPD = self.inter_packet_delay
+        camera.GevSCFTD = self.frame_transmission_delay
+
+        log.debug('OnOpened: Preparing default continuous mode')
+        # reproduce default continuous configuration
+        writable = camera.TriggerSelector.GetAccessMode() in {WO, RW}
+        if writable:
+            for selector in camera.TriggerSelector.Symbolics:
+                camera.TriggerSelector = selector
+                camera.TriggerMode = 'Off'
+        camera.AcquisitionMode = "Continuous"
+
+        camera.OutputQueueSize = self.output_queue_size
+        log.debug('OnOpened: Finished configuration')
+
+
+class ImageLogger(pylon.ImageEventHandler):
+
+    def OnImageSkipped(self, camera, nb_skipped):
+        log = logging.getLogger(camera.GetDeviceInfo().GetFullName())
+        log.error('Skipped %d images', nb_skipped)
+
+    def OnImageGrabbed(self, camera, result):
+        log = logging.getLogger(camera.GetDeviceInfo().GetFullName())
+        if result.GrabSucceeded():
+            data = result.Array
+            log.info('Grabbed %s %s', data.shape, data.dtype)
+        else:
+            error = result.GetErrorDescription()
+            log.error('Error grabbing: %s', error)
 
 
 # Access mode: NotImplemented, NotAvailable, WriteOnly, ReadOnly, ReadWrite

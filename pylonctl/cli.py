@@ -4,7 +4,8 @@ import logging
 import click
 from chronometer import Chronometer
 
-from .camera import (Camera, Acquisition, parameter_tree, parameter_table,
+from .camera import (Camera, Acquisition, Configuration, ImageLogger,
+                     parameter_tree, parameter_table,
                      iter_parameter_display, info_table, transport_factory)
 
 
@@ -69,20 +70,24 @@ def camera_table(max_width, style):
 
 @cli.group("camera")
 @click.option('--host', type=str, required=True)
-@click.option('--packet-size', default=1500)
-@click.option('--inter-packet-delay', default=0)
-@click.option('--frame-transmission-delay', default=0)
+@click.option('--packet-size', default=Configuration.packet_size)
+@click.option('--inter-packet-delay', default=Configuration.inter_packet_delay)
+@click.option('--frame-transmission-delay', default=Configuration.frame_transmission_delay)
+@click.option('--output-queue-size', default=Configuration.output_queue_size)
 @click.pass_context
-def camera(ctx, host, packet_size, inter_packet_delay, frame_transmission_delay):
+def camera(ctx, host, packet_size, inter_packet_delay, frame_transmission_delay,
+           output_queue_size):
     """camera related commands"""
     camera = Camera.from_host(host)
     if camera is None:
         print('Could not find camera with IP {!r}'.format(ip))
         click.exit(1)
-    camera.Open()
-    camera.GevSCPSPacketSize = packet_size
-    camera.GevSCPD = inter_packet_delay
-    camera.GevSCFTD = frame_transmission_delay
+    config = Configuration()
+    config.packet_size = packet_size
+    config.inter_packet_delay = inter_packet_delay
+    config.frame_transmission_delay = frame_transmission_delay
+    config.output_queue_size = output_queue_size
+    camera.register_configuration(config)
     ctx.obj['camera'] = camera
     
 
@@ -97,6 +102,7 @@ def camera_info(ctx):
 @camera.group("param")
 def camera_param():
     """camera parameter related commands"""
+
 
 @camera_param.command("list")
 @filtering
@@ -150,26 +156,28 @@ def table(ctx, filter, style):
 def acquire(ctx, nb_frames, exposure, latency, roi):
     """do an acquisition"""
     camera = ctx.obj['camera']
+    camera.register_image_event_handler(ImageLogger())
     total_time = nb_frames * (exposure + latency)
     if roi is not None:
         roi = [int(i) for i in roi.split(',')]
         assert len(roi) == 4
     click.echo(f'Acquiring {nb_frames} frames on {camera} (total: {total_time:.3f}s)')
     with camera:
-        acq = Acquisition(camera)
-        acq.prepare(nb_frames, exposure, latency, roi)
-        try:
-            with Chronometer() as chrono:
-                for i, result in enumerate(acq):
-                    if result.GrabSucceeded():
-                        data = result.Array
-                        click.secho(f'Grabbed #{i} {data.shape} {data.dtype}', fg='green')
-                    else:
-                        error = result.GetErrorDescription()
-                        click.secho('Error: {}'.format(error), fg='red', err=True)
-                    result.Release()
-        finally:
-            click.secho('Elapsed time: {:.6f}s'.format(chrono.elapsed))
+        with Acquisition(camera, nb_frames, exposure, latency, roi) as acq:
+            acq.start()
+            try:
+                with Chronometer() as chrono:
+                    for i, result in enumerate(acq):
+                        if result.GrabSucceeded():
+                            data = result.Array
+                            click.secho(f'Grabbed #{i} {data.shape} {data.dtype}',
+                                        fg='green')
+                        else:
+                            error = result.GetErrorDescription()
+                            click.secho('Error: {}'.format(error), fg='red', err=True)
+                        result.Release()
+            finally:
+                click.secho('Elapsed time: {:.6f}s'.format(chrono.elapsed))
 
 
 @camera.group("gui")

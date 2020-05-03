@@ -5,29 +5,75 @@ from PyQt5 import Qt, uic
 import pyqtgraph
 import pkg_resources
 
-from pylonctl.camera import Camera, iacquire
+from pylonctl.camera import Camera, Acquisition
 
 
 UI = pkg_resources.resource_filename('pylonctl.gui', 'gui.ui')
 
 
-def acq_loop(camera, source, nb_frames, exposure, latency):
+def acq_loop(camera, source, nb_frames, exposure, latency, roi, binning):
     logging.info('starting acquisition task...')
-    for frame in iacquire(camera, nb_frames, exposure, latency):
-        source.frame.emit(frame)
-    logging.info('finished acquisition task...')
+    logging.info('  start preparing camera...')
+    try:
+        with Acquisition(camera, nb_frames, exposure, latency, roi, binning) as acq:
+            logging.info('  finished preparing camera')
+            logging.info('  start acquisition...')
+            acq.start()
+            for frame in acq:
+                source.frame.emit(frame)
+            logging.info('  finished acquisition')
+    except Exception as error:
+        logging.error('Error while acquiring: %r', error)
+    finally:
+        logging.info('finished acquisition task...')
 
 
 def load_gui(widget=None, camera=None, source=None):
     if widget is None:
         widget = Qt.QMainWindow()
 
-    def update_freq(v):
+    def on_update_freq(v):
         exposure = widget.exposure_time.value()
         latency = widget.latency.value()
-        freq = 1 / (exposure + latency)
+        period = exposure + latency
+        freq = float('inf') if not period else 1 / period
         widget.freq_value.setText('{:.3f} Hz'.format(freq))
-    widget.update_freq = update_freq
+
+    def on_reset_roi():
+        widget.x_spin.setValue(0)
+        widget.y_spin.setValue(0)
+        widget.w_spin.setValue(widget.w_spin.maximum())
+        widget.h_spin.setValue(widget.h_spin.maximum())
+
+    def on_start():
+        nb_frames = widget.nb_frames.value()
+        exposure = widget.exposure_time.value()
+        latency = widget.latency.value()
+        roi = (widget.x_spin.value(), widget.y_spin.value(),
+               widget.w_spin.value(), widget.h_spin.value())
+        binning = (widget.h_bin_spin.value(), widget.v_bin_spin.value())
+        widget.task = threading.Thread(
+            target=acq_loop, args=(widget.camera, widget.source,
+                                   nb_frames, exposure, latency, roi, binning))
+        widget.task.daemon = True
+        widget.task.start()
+
+    def on_stop():
+        camera.StopGrabbing()
+        if widget.task:
+            widget.task.join()
+
+    widget.on_update_freq = on_update_freq
+    widget.on_reset_roi = on_reset_roi
+    widget.on_start = on_start
+    widget.on_stop = on_stop
+        
+    def on_frame(frame):
+        try:
+            if frame.GrabSucceeded():
+                widget.img.setImage(frame.Array)
+        except:
+            pass
 
     uic.loadUi(UI, baseinstance=widget)
 
@@ -37,31 +83,6 @@ def load_gui(widget=None, camera=None, source=None):
     widget.img = pyqtgraph.ImageItem()
     widget.vb.addItem(widget.img)
 
-    def on_start():
-        nb_frames = widget.nb_frames.value()
-        exposure = widget.exposure_time.value()
-        latency = widget.latency.value()
-        widget.task = threading.Thread(
-            target=acq_loop, args=(widget.camera, widget.source,
-                                   nb_frames, exposure, latency))
-        widget.task.daemon = True
-        widget.task.start()
-
-    def on_stop():
-        camera.StopGrabbing()
-        if widget.task:
-            widget.task.join()
-        
-    def on_frame(frame):
-        try:
-            if frame.GrabSucceeded():
-                print(frame.Array)
-                widget.img.setImage(frame.Array)
-        except:
-            pass
-
-    widget.start_button.clicked.connect(on_start)
-    widget.stop_button.clicked.connect(on_stop)
     widget.source.frame.connect(on_frame)
     widget.camera = camera
 
@@ -70,8 +91,16 @@ def load_gui(widget=None, camera=None, source=None):
             '{} - {}'.format(
                 widget.windowTitle(), camera.device_info.GetFullName()))
     widget.nb_frames.setValue(10)
-    widget.exposure_time.setValue(0.1)
-    widget.latency.setValue(0.9)
+    widget.exposure_time.setValue(0.01)
+    widget.latency.setValue(0.1-widget.exposure_time.value())
+
+    widget.x_spin.setValue(camera.OffsetX.Value)
+    widget.y_spin.setValue(camera.OffsetY.Value)
+    widget.w_spin.setValue(camera.Width.Value)
+    widget.h_spin.setValue(camera.Height.Value)
+    widget.h_bin_spin.setValue(camera.BinningHorizontal.Value)
+    widget.v_bin_spin.setValue(camera.BinningVertical.Value)
+
     return widget
 
 
