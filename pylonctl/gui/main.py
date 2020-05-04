@@ -5,7 +5,8 @@ from PyQt5 import Qt, uic
 import pyqtgraph
 import pkg_resources
 
-from pylonctl.camera import Camera, Acquisition
+from pypylon import genicam
+from pylonctl.camera import Acquisition
 
 
 UI = pkg_resources.resource_filename('pylonctl.gui', 'gui.ui')
@@ -51,7 +52,10 @@ def load_gui(widget=None, camera=None, source=None):
         latency = widget.latency.value()
         roi = (widget.x_spin.value(), widget.y_spin.value(),
                widget.w_spin.value(), widget.h_spin.value())
-        binning = (widget.h_bin_spin.value(), widget.v_bin_spin.value())
+        if widget.h_bin_spin.isEnabled():
+            binning = (widget.h_bin_spin.value(), widget.v_bin_spin.value())
+        else:
+            binning = None
         widget.task = threading.Thread(
             target=acq_loop, args=(widget.camera, widget.source,
                                    nb_frames, exposure, latency, roi, binning))
@@ -67,12 +71,12 @@ def load_gui(widget=None, camera=None, source=None):
     widget.on_reset_roi = on_reset_roi
     widget.on_start = on_start
     widget.on_stop = on_stop
-        
+
     def on_frame(frame):
         try:
             if frame.GrabSucceeded():
                 widget.img.setImage(frame.Array)
-        except:
+        except Exception:
             pass
 
     uic.loadUi(UI, baseinstance=widget)
@@ -98,8 +102,12 @@ def load_gui(widget=None, camera=None, source=None):
     widget.y_spin.setValue(camera.OffsetY.Value)
     widget.w_spin.setValue(camera.Width.Value)
     widget.h_spin.setValue(camera.Height.Value)
-    widget.h_bin_spin.setValue(camera.BinningHorizontal.Value)
-    widget.v_bin_spin.setValue(camera.BinningVertical.Value)
+    try:
+        widget.h_bin_spin.setValue(camera.BinningHorizontal.Value)
+        widget.v_bin_spin.setValue(camera.BinningVertical.Value)
+    except genicam.LogicalErrorException:
+        widget.h_bin_spin.setEnabled(False)
+        widget.v_bin_spin.setEnabled(False)
 
     return widget
 
@@ -114,7 +122,7 @@ class GUI(Qt.QMainWindow):
     def __init__(self, camera=None, parent=None):
         super().__init__(parent)
         load_gui(self, camera)
-        
+
 
 def main(camera):
     app = Qt.QApplication([])

@@ -4,7 +4,8 @@ import logging
 import click
 from chronometer import Chronometer
 
-from .camera import (Camera, Acquisition, Configuration, ImageLogger,
+from .camera import (Camera, Acquisition,
+                     Configuration, ImageLogger,
                      parameter_tree, parameter_table,
                      iter_parameter_display, info_table, transport_factory)
 
@@ -22,6 +23,16 @@ style = click.option(
 filtering = click.option(
     '--filter', type=str, default='*', show_default=True,
     help="parameter filter (supports pattern matching)")
+
+
+def pause(info="Press any key to continue ...", err=False):
+    """Same as click.pause but without masking KeyboardError"""
+    if info:
+        click.echo(info, nl=False, err=err)
+    result = click.getchar()
+    if info:
+        click.echo(err=err)
+    return result
 
 
 @click.group()
@@ -69,18 +80,28 @@ def camera_table(max_width, style):
 
 
 @cli.group("camera")
-@click.option('--host', type=str, required=True)
+@click.option('--host', type=str, default=None)
+@click.option('--model', type=str, default=None)
+@click.option('--serial', type=str, default=None)
+@click.option('--user-name', type=str, default=None)
 @click.option('--packet-size', default=Configuration.packet_size)
 @click.option('--inter-packet-delay', default=Configuration.inter_packet_delay)
 @click.option('--frame-transmission-delay', default=Configuration.frame_transmission_delay)
 @click.option('--output-queue-size', default=Configuration.output_queue_size)
 @click.pass_context
-def camera(ctx, host, packet_size, inter_packet_delay, frame_transmission_delay,
+def camera(ctx, host, model, serial, user_name,
+           packet_size, inter_packet_delay, frame_transmission_delay,
            output_queue_size):
     """camera related commands"""
-    camera = Camera.from_host(host)
+    if host is not None:
+        camera = Camera.from_host(host)
+    elif model is not None:
+        camera = Camera.from_model(model)
+    else:
+        click.echo('Must give either host, model, serial or user-name', err=True)
+        click.exit(2)
     if camera is None:
-        print('Could not find camera with IP {!r}'.format(ip))
+        click.echo('Could not find camera', err=True)
         click.exit(1)
     config = Configuration()
     config.packet_size = packet_size
@@ -89,7 +110,8 @@ def camera(ctx, host, packet_size, inter_packet_delay, frame_transmission_delay,
     config.output_queue_size = output_queue_size
     camera.register_configuration(config)
     ctx.obj['camera'] = camera
-    
+    ctx.obj['config'] = config
+
 
 @camera.command("info")
 @click.pass_context
@@ -108,9 +130,12 @@ def camera_param():
 @filtering
 @click.pass_context
 def camera_param_values(ctx, filter):
-    """list of parameter names and values""" 
+    """list of parameter names and values"""
     cam = ctx.obj['camera']
-    filt = lambda o: fnmatch.fnmatch(o[0], filter)
+
+    def filt(o):
+        return fnmatch.fnmatch(o[0], filter)
+
     with cam:
         for text in iter_parameter_display(cam, filt=filt):
             click.echo(text)
@@ -122,7 +147,10 @@ def camera_param_values(ctx, filter):
 def camera_param_tree(ctx, filter):
     """display camera parameters in a tree"""
     cam = ctx.obj['camera']
-    filt = lambda o: fnmatch.fnmatch(o['name'], filter)
+
+    def filt(o):
+        return fnmatch.fnmatch(o['name'], filter)
+
     with cam:
         tree = parameter_tree(cam, filt=filt)
     if tree.size():
@@ -135,10 +163,13 @@ def camera_param_tree(ctx, filter):
 @filtering
 @style
 @click.pass_context
-def table(ctx, filter, style):
+def camera_param_table(ctx, filter, style):
     """display list of camera parameters in a table"""
     cam = ctx.obj['camera']
-    filt = lambda o: fnmatch.fnmatch(o[0], filter)
+
+    def filt(o):
+        return fnmatch.fnmatch(o[0], filter)
+
     with cam:
         table = parameter_table(cam, filt=filt)
     style = getattr(table, 'STYLE_' + style.upper())
@@ -148,34 +179,48 @@ def table(ctx, filter, style):
 
 
 @camera.command("acquire")
+@click.option(
+    '-t', '--trigger', default='internal',
+    type=click.Choice(['internal', 'software'], case_sensitive=False))
 @click.option('-n', '--nb-frames', default=10)
 @click.option('-e', '--exposure', default=0.1)
 @click.option('-l', '--latency', default=0.)
-@click.option('--roi', default=None, type=str, help='x0,y0,w,h')
+@click.option('-r', '--roi', default=None, type=str, help='x0,y0,w,h')
+@click.option('-b', '--binning', default=None, type=str, help='horiz,vert')
 @click.pass_context
-def acquire(ctx, nb_frames, exposure, latency, roi):
+def general_acquisition(ctx, trigger, nb_frames, exposure, latency, roi, binning):
     """do an acquisition"""
     camera = ctx.obj['camera']
+    config = ctx.obj['config']
+    trigger = trigger.lower()
+    config.trigger_source = trigger
     camera.register_image_event_handler(ImageLogger())
     total_time = nb_frames * (exposure + latency)
     if roi is not None:
         roi = [int(i) for i in roi.split(',')]
         assert len(roi) == 4
-    click.echo(f'Acquiring {nb_frames} frames on {camera} (total: {total_time:.3f}s)')
+    if binning is not None:
+        binning = [int(i) for i in binning.split(',')]
+        assert len(binning) == 2
+    msg = f'Acquiring {nb_frames} frames on {camera}'
+    if nb_frames:
+        total_time = nb_frames * (exposure + latency)
+        msg += f' (Total acq. time: {total_time:.3f}s)'
+    click.echo(msg)
     with camera:
-        with Acquisition(camera, nb_frames, exposure, latency, roi) as acq:
+        with Acquisition(camera, nb_frames, exposure, latency, roi=roi,
+                         trigger=trigger) as acq:
             acq.start()
             try:
                 with Chronometer() as chrono:
-                    for i, result in enumerate(acq):
-                        if result.GrabSucceeded():
-                            data = result.Array
-                            click.secho(f'Grabbed #{i} {data.shape} {data.dtype}',
-                                        fg='green')
-                        else:
-                            error = result.GetErrorDescription()
-                            click.secho('Error: {}'.format(error), fg='red', err=True)
+                    frame_nb = 0
+                    while frame_nb < nb_frames or not nb_frames:
+                        if trigger == 'software':
+                            pause("Press any key to trigger acquisition "
+                                  f"{frame_nb+1} of {nb_frames}... ")
+                        result = next(acq)
                         result.Release()
+                        frame_nb += 1
             finally:
                 click.secho('Elapsed time: {:.6f}s'.format(chrono.elapsed))
 

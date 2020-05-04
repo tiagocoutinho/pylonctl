@@ -15,7 +15,7 @@ def transport_factory(factory=None):
 
 def get_device_from_info(dev_info, factory=None):
     factory = transport_factory(factory)
-    return factory.CreateDevice(dev_info)
+    return factory.CreateFirstDevice(dev_info)
 
 
 def get_icamera_from_dev_info(dev_info, factory=None):
@@ -75,6 +75,10 @@ class Camera:
     def from_host(cls, ip_or_hostname):
         return cls(get_icamera_from(IpAddress=ip_or_hostname))
 
+    @classmethod
+    def from_model(cls, name):
+        return cls(get_icamera_from(ModelName=name))
+
     def register_configuration(
             self, config, mode=pylon.RegistrationMode_ReplaceAll,
             clean_up=pylon.Cleanup_Delete):
@@ -94,7 +98,7 @@ def ensure_grab_stop(camera):
         camera.StopGrabbing()
 
 
-def prepare_acq(camera, nb_frames, exposure, latency, roi=None, binning=None):
+def prepare_acq(camera, exposure, latency, roi=None, binning=None):
     camera.ExposureTimeAbs = exposure * 1E6
     if latency < 1e-6:
         camera.AcquisitionFrameRateEnable = False
@@ -123,10 +127,36 @@ def prepare_acq(camera, nb_frames, exposure, latency, roi=None, binning=None):
             camera.Height = h
 
 
+TRIGGER_SOURCE_MAP = {
+    'internal': 'Off',
+    'line1': 'Line1',
+    'software': 'Software'
+}
+
+
+def set_trigger(camera, source='Internal', activation='RisingEdge'):
+    """Source: Internal, Software, Line1"""
+    source = TRIGGER_SOURCE_MAP[source.lower()]
+    selectors = camera.TriggerSelector.Symbolics
+    for selector in selectors:
+        camera.TriggerSelector = selector
+        camera.TriggerMode = 'Off'
+    if source != 'Off':
+        selector = 'FrameStart' if 'FrameStart' in selectors else selectors[0]
+        camera.TriggerSelector = selector
+        camera.TriggerMode = 'On'
+        camera.TriggerSource = source
+        if source != 'Software':
+            camera.TriggerActivation = activation
+    camera.AcquisitionMode = "Continuous"
+
+
 class Acquisition:
 
-    def __init__(self, camera, nb_frames, exposure, latency, roi=None, binning=None):
+    def __init__(self, camera, nb_frames, exposure, latency,
+                 roi=None, binning=None, trigger='internal'):
         self.camera = camera
+        self.trigger = trigger
         self.nb_frames = nb_frames
         self.exposure = exposure
         self.latency = latency
@@ -134,19 +164,26 @@ class Acquisition:
         self.roi = roi
         self.binning = binning
         self.prepare = functools.partial(
-            prepare_acq, camera, nb_frames, exposure, latency, roi, binning)
+            prepare_acq, camera, exposure, latency, roi, binning)
         if nb_frames:
             self.start = functools.partial(camera.StartGrabbingMax, nb_frames)
         else:
             self.start = camera.StartGrabbing
 
     def __iter__(self):
+        return self
+
+    def __next__(self):
         camera = self.camera
+        if not camera.IsGrabbing():
+            raise StopIteration()
         wait_ms = int(self.period * 1000) + 250
-        with ensure_grab_stop(camera):
-            while camera.IsGrabbing():
-                yield camera.RetrieveResult(
-                    wait_ms, pylon.TimeoutHandling_ThrowException)
+        if self.trigger == 'software':
+            camera.WaitForFrameTriggerReady(
+                100, pylon.TimeoutHandling_ThrowException)
+            camera.ExecuteSoftwareTrigger()
+        return camera.RetrieveResult(
+            wait_ms, pylon.TimeoutHandling_ThrowException)
 
     def __enter__(self):
         self.prepare()
@@ -162,22 +199,26 @@ class Configuration(pylon.ConfigurationEventHandler):
     inter_packet_delay = 0
     frame_transmission_delay = 0
     output_queue_size = 5
+    trigger_source = 'internal'
 
     def OnOpened(self, camera):
+        try:
+            self.apply_config(camera)
+        except Exception:
+            log = logging.getLogger(camera.GetDeviceInfo().GetFullName())
+            log.exception('OnOpened error')
+
+    def apply_config(self, camera):
         log = logging.getLogger(camera.GetDeviceInfo().GetFullName())
         log.debug('OnOpened: Preparing network parameters')
-        camera.GevSCPSPacketSize = self.packet_size
-        camera.GevSCPD = self.inter_packet_delay
-        camera.GevSCFTD = self.frame_transmission_delay
-
-        log.debug('OnOpened: Preparing default continuous mode')
+        if camera.IsGigE():
+            camera.GevSCPSPacketSize = self.packet_size
+            camera.GevSCPD = self.inter_packet_delay
+            camera.GevSCFTD = self.frame_transmission_delay
         # reproduce default continuous configuration
         writable = camera.TriggerSelector.GetAccessMode() in {WO, RW}
         if writable:
-            for selector in camera.TriggerSelector.Symbolics:
-                camera.TriggerSelector = selector
-                camera.TriggerMode = 'Off'
-        camera.AcquisitionMode = "Continuous"
+            set_trigger(camera, self.trigger_source)
 
         camera.OutputQueueSize = self.output_queue_size
         log.debug('OnOpened: Finished configuration')
