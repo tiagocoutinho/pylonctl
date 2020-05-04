@@ -1,4 +1,3 @@
-
 from PyQt5 import Qt
 
 from pyqtgraph.parametertree import Parameter, ParameterTree, ParameterItem
@@ -7,13 +6,13 @@ from pylonctl.camera import parameter_dict
 
 
 def strip_limits(data):
-    data.pop('limits', None)
-    for child in data.get('children', ()):
+    data.pop("limits", None)
+    for child in data.get("children", ()):
         strip_limits(child)
 
 
 def main(camera):
-    app = Qt.QApplication([]) 
+    app = Qt.QApplication([])
 
     t = ParameterTree()
     t.resize(600, 800)
@@ -23,8 +22,9 @@ def main(camera):
         try:
             setattr(camera, param.name(), value)
         except Exception as err:
-            Qt.QMessageBox.critical(None, 'Error setting {}'.format(param.name()),
-                                    repr(err))
+            Qt.QMessageBox.critical(
+                None, "Error setting {}".format(param.name()), repr(err)
+            )
 
     def connect(param, slot):
         param.sigValueChanged.connect(slot)

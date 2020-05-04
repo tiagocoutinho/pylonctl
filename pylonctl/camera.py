@@ -26,9 +26,9 @@ def get_icamera_from_dev_info(dev_info, factory=None):
 def get_device_from(factory=None, **kwargs):
     di = pylon.DeviceInfo()
     for key, value in kwargs.items():
-        if key == 'IpAddress':
+        if key == "IpAddress":
             value = socket.gethostbyname(value)
-        getattr(di, 'Set'+key)(value)
+        getattr(di, "Set" + key)(value)
     return get_device_from_info(di, factory)
 
 
@@ -38,7 +38,6 @@ def get_icamera_from(factory=None, **kwargs):
 
 
 class Camera:
-
     def __init__(self, icam):
         dev_info = icam.GetDeviceInfo()
         log = logging.getLogger(dev_info.GetFullName())
@@ -49,7 +48,7 @@ class Camera:
 
     def __repr__(self):
         props = iter_info(self.device_info)
-        return '\n'.join(': '.join(prop) for prop in props)
+        return "\n".join(": ".join(prop) for prop in props)
 
     def __getattr__(self, name):
         return getattr(self.icam, name)
@@ -65,7 +64,7 @@ class Camera:
         self.icam.Close()
 
     def __dir__(self):
-        return ['device_info', 'from_host'] + dir(self.icam)
+        return ["device_info", "from_host"] + dir(self.icam)
 
     @property
     def device_info(self):
@@ -80,13 +79,19 @@ class Camera:
         return cls(get_icamera_from(ModelName=name))
 
     def register_configuration(
-            self, config, mode=pylon.RegistrationMode_ReplaceAll,
-            clean_up=pylon.Cleanup_Delete):
+        self,
+        config,
+        mode=pylon.RegistrationMode_ReplaceAll,
+        clean_up=pylon.Cleanup_Delete,
+    ):
         self.icam.RegisterConfiguration(config, mode, clean_up)
 
     def register_image_event_handler(
-            self, handler, mode=pylon.RegistrationMode_ReplaceAll,
-            clean_up=pylon.Cleanup_Delete):
+        self,
+        handler,
+        mode=pylon.RegistrationMode_ReplaceAll,
+        clean_up=pylon.Cleanup_Delete,
+    ):
         self.icam.RegisterImageEventHandler(handler, mode, clean_up)
 
 
@@ -99,7 +104,7 @@ def ensure_grab_stop(camera):
 
 
 def prepare_acq(camera, exposure, latency, roi=None, binning=None):
-    camera.ExposureTimeAbs = exposure * 1E6
+    camera.ExposureTimeAbs = exposure * 1e6
     if latency < 1e-6:
         camera.AcquisitionFrameRateEnable = False
     else:
@@ -127,34 +132,37 @@ def prepare_acq(camera, exposure, latency, roi=None, binning=None):
             camera.Height = h
 
 
-TRIGGER_SOURCE_MAP = {
-    'internal': 'Off',
-    'line1': 'Line1',
-    'software': 'Software'
-}
+TRIGGER_SOURCE_MAP = {"internal": "Off", "line1": "Line1", "software": "Software"}
 
 
-def set_trigger(camera, source='Internal', activation='RisingEdge'):
+def set_trigger(camera, source="Internal", activation="RisingEdge"):
     """Source: Internal, Software, Line1"""
     source = TRIGGER_SOURCE_MAP[source.lower()]
     selectors = camera.TriggerSelector.Symbolics
     for selector in selectors:
         camera.TriggerSelector = selector
-        camera.TriggerMode = 'Off'
-    if source != 'Off':
-        selector = 'FrameStart' if 'FrameStart' in selectors else selectors[0]
+        camera.TriggerMode = "Off"
+    if source != "Off":
+        selector = "FrameStart" if "FrameStart" in selectors else selectors[0]
         camera.TriggerSelector = selector
-        camera.TriggerMode = 'On'
+        camera.TriggerMode = "On"
         camera.TriggerSource = source
-        if source != 'Software':
+        if source != "Software":
             camera.TriggerActivation = activation
     camera.AcquisitionMode = "Continuous"
 
 
 class Acquisition:
-
-    def __init__(self, camera, nb_frames, exposure, latency,
-                 roi=None, binning=None, trigger='internal'):
+    def __init__(
+        self,
+        camera,
+        nb_frames,
+        exposure,
+        latency,
+        roi=None,
+        binning=None,
+        trigger="internal",
+    ):
         self.camera = camera
         self.trigger = trigger
         self.nb_frames = nb_frames
@@ -164,7 +172,8 @@ class Acquisition:
         self.roi = roi
         self.binning = binning
         self.prepare = functools.partial(
-            prepare_acq, camera, exposure, latency, roi, binning)
+            prepare_acq, camera, exposure, latency, roi, binning
+        )
         if nb_frames:
             self.start = functools.partial(camera.StartGrabbingMax, nb_frames)
         else:
@@ -178,12 +187,10 @@ class Acquisition:
         if not camera.IsGrabbing():
             raise StopIteration()
         wait_ms = int(self.period * 1000) + 250
-        if self.trigger == 'software':
-            camera.WaitForFrameTriggerReady(
-                100, pylon.TimeoutHandling_ThrowException)
+        if self.trigger == "software":
+            camera.WaitForFrameTriggerReady(100, pylon.TimeoutHandling_ThrowException)
             camera.ExecuteSoftwareTrigger()
-        return camera.RetrieveResult(
-            wait_ms, pylon.TimeoutHandling_ThrowException)
+        return camera.RetrieveResult(wait_ms, pylon.TimeoutHandling_ThrowException)
 
     def __enter__(self):
         self.prepare()
@@ -199,18 +206,18 @@ class Configuration(pylon.ConfigurationEventHandler):
     inter_packet_delay = 0
     frame_transmission_delay = 0
     output_queue_size = 5
-    trigger_source = 'internal'
+    trigger_source = "internal"
 
     def OnOpened(self, camera):
         try:
             self.apply_config(camera)
         except Exception:
             log = logging.getLogger(camera.GetDeviceInfo().GetFullName())
-            log.exception('OnOpened error')
+            log.exception("OnOpened error")
 
     def apply_config(self, camera):
         log = logging.getLogger(camera.GetDeviceInfo().GetFullName())
-        log.debug('OnOpened: Preparing network parameters')
+        log.debug("OnOpened: Preparing network parameters")
         if camera.IsGigE():
             camera.GevSCPSPacketSize = self.packet_size
             camera.GevSCPD = self.inter_packet_delay
@@ -221,23 +228,22 @@ class Configuration(pylon.ConfigurationEventHandler):
             set_trigger(camera, self.trigger_source)
 
         camera.OutputQueueSize = self.output_queue_size
-        log.debug('OnOpened: Finished configuration')
+        log.debug("OnOpened: Finished configuration")
 
 
 class ImageLogger(pylon.ImageEventHandler):
-
     def OnImageSkipped(self, camera, nb_skipped):
         log = logging.getLogger(camera.GetDeviceInfo().GetFullName())
-        log.error('Skipped %d images', nb_skipped)
+        log.error("Skipped %d images", nb_skipped)
 
     def OnImageGrabbed(self, camera, result):
         log = logging.getLogger(camera.GetDeviceInfo().GetFullName())
         if result.GrabSucceeded():
             data = result.Array
-            log.info('Grabbed %s %s', data.shape, data.dtype)
+            log.info("Grabbed %s %s", data.shape, data.dtype)
         else:
             error = result.GetErrorDescription()
-            log.error('Error grabbing: %s', error)
+            log.error("Error grabbing: %s", error)
 
 
 # Access mode: NotImplemented, NotAvailable, WriteOnly, ReadOnly, ReadWrite
@@ -246,8 +252,9 @@ NI, NA, WO, RO, RW = range(5)
 
 def iter_parameter_values(obj, filt=None):
     values = ((name, getattr(obj, name)) for name in dir(obj))
-    ivalues = ((name, value) for name, value in values
-               if isinstance(value, genicam.IValue))
+    ivalues = (
+        (name, value) for name, value in values if isinstance(value, genicam.IValue)
+    )
     return ivalues if filt is None else filter(filt, ivalues)
 
 
@@ -262,44 +269,53 @@ def get_field(v, field, default=None):
 def parameter_display(v):
     if not isinstance(v, dict):
         v = parameter_from_node(v)
-    val = v.get('value', '---')
-    unit = v.get('unit')
-    unit = (' ' + unit) if unit else ''
-    m, M = v.get('limits', (None, None))
-    i = v.get('step')
+    val = v.get("value", "---")
+    unit = v.get("unit")
+    unit = (" " + unit) if unit else ""
+    m, M = v.get("limits", (None, None))
+    i = v.get("step")
     rng = None
     if m is not None and M is not None:
-        rng = f'[{m}:{M}]' if i is None else f'[{m}:{M}:{i}]'
-    access = 'RO' if v['readonly'] else 'RW'
+        rng = f"[{m}:{M}]" if i is None else f"[{m}:{M}:{i}]"
+    access = "RO" if v["readonly"] else "RW"
     r = f"{v['title']}: {val}{unit} ({access}) ({v['type'][0]})"
     if rng:
-        r += ' ' + rng
+        r += " " + rng
     return r
 
 
 def node_is_value(v):
-    return isinstance(v, (genicam.IInteger, genicam.IEnumeration,
-                          genicam.IBoolean, genicam.IString))
+    return isinstance(
+        v, (genicam.IInteger, genicam.IEnumeration, genicam.IBoolean, genicam.IString)
+    )
 
 
 def parameter_table(obj, filt=None):
     table = BeautifulTable()
-    table.column_headers = 'Name', 'Value', 'Type', 'Access'
+    table.column_headers = "Name", "Value", "Type", "Access"
     for name, value in iter_parameter_values(obj, filt):
         vd = parameter_from_node(value)
-        row = (vd['name'], vd.get('value'), vd['type'],
-               'RO' if vd['readonly'] else 'RW')
+        row = (
+            vd["name"],
+            vd.get("value"),
+            vd["type"],
+            "RO" if vd["readonly"] else "RW",
+        )
         table.append_row(row)
     return table
 
 
 def iter_parameter_display(obj, filt=None):
     if filt is None:
+
         def f(o):
             return o[1].GetAccessMode() in {RO, RW}
+
     else:
+
         def f(o):
             return o[1].GetAccessMode() in {RO, RW} and filt(o)
+
     for name, value in iter_parameter_values(obj, filt=f):
         if node_is_value(value):
             vd = parameter_from_node(value)
@@ -307,14 +323,14 @@ def iter_parameter_display(obj, filt=None):
 
 
 TypeMap = {
-    genicam.IInteger: 'int',
-    genicam.IBoolean: 'bool',
-    genicam.IFloat: 'float',
-    genicam.IEnumeration: 'list',
-    genicam.IString: 'str',
-    genicam.ICategory: 'group',
-    genicam.ICommand: 'action',
-    genicam.IRegister: 'register',
+    genicam.IInteger: "int",
+    genicam.IBoolean: "bool",
+    genicam.IFloat: "float",
+    genicam.IEnumeration: "list",
+    genicam.IString: "str",
+    genicam.ICategory: "group",
+    genicam.ICommand: "action",
+    genicam.IRegister: "register",
 }
 
 
@@ -327,21 +343,21 @@ def parameter_from_node(n):
         readonly=access == RO,
     )
     if n.Node.ToolTip:
-        result['tip'] = n.Node.ToolTip
-    value = get_field(n, 'Value')
+        result["tip"] = n.Node.ToolTip
+    value = get_field(n, "Value")
     if value is not None:
-        result['value'] = value
-    suffix = get_field(n, 'Unit')
+        result["value"] = value
+    suffix = get_field(n, "Unit")
     if suffix is not None:
-        result['suffix'] = suffix
-    m, M = get_field(n, 'Min'), get_field(n, 'Max')
+        result["suffix"] = suffix
+    m, M = get_field(n, "Min"), get_field(n, "Max")
     if m is not None and M is not None:
-        result['limits'] = m, M
-    step = get_field(n, 'Inc')
+        result["limits"] = m, M
+    step = get_field(n, "Inc")
     if step is not None:
-        result['step'] = step
-    if hasattr(n, 'GetEntries'):
-        result['values'] = {e.Symbolic: e.Value for e in n.GetEntries()}
+        result["step"] = step
+    if hasattr(n, "GetEntries"):
+        result["values"] = {e.Symbolic: e.Value for e in n.GetEntries()}
     return result
 
 
@@ -349,20 +365,21 @@ def _parameter_dict(n, filt=None):
     result = parameter_from_node(n)
     if isinstance(n, genicam.ICategory):
         children = (
-            _parameter_dict(feature, filt=filt) for feature in n.Features
+            _parameter_dict(feature, filt=filt)
+            for feature in n.Features
             if not isinstance(feature, genicam.IRegister)
         )
         children = [child for child in children if child is not None]
         if not children:
             return
-        result['children'] = children
+        result["children"] = children
     elif filt is not None and not filt(result):
         return
     return result
 
 
 def parameter_dict(obj, filt=None):
-    if hasattr(obj, 'Root'):
+    if hasattr(obj, "Root"):
         obj = obj.Root
     return _parameter_dict(obj, filt=filt)
 
@@ -371,13 +388,13 @@ def parameter_tree(item, filt=None):
     def _node_item(d, parent=None):
         if d is None:
             return
-        children = d.pop('children', ())
-        name = d.pop('name')
+        children = d.pop("children", ())
+        name = d.pop("name")
         this = tree.create_node(name, name, parent, data=d)
         for key, value in d.items():
-            text = '{}: {}'.format(key, value)
+            text = "{}: {}".format(key, value)
             if len(text) > 80:
-                text = text[:75] + '[...]'
+                text = text[:75] + "[...]"
             tree.create_node(text, parent=this)
         for child in children:
             _node_item(child, parent=this)
@@ -388,6 +405,7 @@ def parameter_tree(item, filt=None):
 
 
 # Object property related functions (applicable to DeviceInfo and Transport)
+
 
 def info_names(obj, filt=None):
     names = obj.GetPropertyNames()[1]

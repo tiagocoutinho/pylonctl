@@ -27,7 +27,6 @@ Commands:
   transport  transport related commands
 ```
 
-
 ### List of transports
 
 ```terminal
@@ -179,7 +178,7 @@ $ pylonctl camera --model=Emulation param tree
 #### Internal trigger
 
 ```terminal
-pylonctl --log-level=debug camera --model=Emulation acquire -n 3 -e .1     (py37)  Mon 04 May 2020 09:32:50 PM CEST
+pylonctl --log-level=debug camera --model=Emulation acquire -n 3 -e .1
 Acquiring 3 frames on Basler Emulation (0815-0000) (Total acq. time: 0.300s)
 2020-05-04 21:33:30,812 DEBUG MainThread Emulation (0815-0000): OnOpened: Preparing network parameters
 2020-05-04 21:33:30,813 DEBUG MainThread Emulation (0815-0000): OnOpened: Finished configuration
