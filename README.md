@@ -13,6 +13,21 @@ From within your favorite python environment:
 
 ## Usage
 
+```terminal
+$ pylonctl --help
+Usage: pylonctl [OPTIONS] COMMAND [ARGS]...
+
+Options:
+  --log-level [debug|info|warning|error]
+  --help                          Show this message and exit.
+
+Commands:
+  camera     camera related commands
+  table      list of available cameras
+  transport  transport related commands
+```
+
+
 ### List of transports
 
 ```terminal

@@ -11,10 +11,12 @@
 import sys
 from setuptools import setup, find_packages
 
+
 def get_readme(name='README.md'):
     """Get readme file contents"""
     with open(name) as f:
         return f.read()
+
 
 readme = get_readme()
 
