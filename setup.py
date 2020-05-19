@@ -65,5 +65,5 @@ setup(
     tests_require=test_requirements,
     python_requires=">=3.7",
     url="https://gitlab.com/tiagocoutinho/pylonctl",
-    version="0.1.0",
+    version="0.2.0",
 )
