@@ -7,13 +7,31 @@ to control image acquisition and a library of PyQt widgets.
 
 ## Installation
 
-From within your favorite python environment:
+### Linux pre-requisite
+
+pylonctl has a dependency on official pylon python wrapper:
+the excelent [pypylon](http://github/basler/pypylon).
+
+At the time of writing this documentation, pypylon is only
+available on [Pypi](https://pypi.org/) for Windows.
+
+You can, however download the latest wheel for Linux directly from
+the [pypylon github repo](https://github.com/basler/pypylon/releases).
+Just download the wheel that is most appropriate to your machine and,
+from within your favorite python environment type:
+
+`pip install <wheel file>`
+
+(ex: `pip install pypylon-1.5.4-cp37-cp37m-linux_x86_64.whl`)
+
+
+Finally, from within your favorite python environment:
 
 `pip install pylonctl`
 
 ## Usage
 
-```terminal
+```console
 $ pylonctl --help
 Usage: pylonctl [OPTIONS] COMMAND [ARGS]...
 
@@ -29,7 +47,7 @@ Commands:
 
 ### List of transports
 
-```terminal
+```console
 $ pylonctl transport table
 +--------------+------------------+---------------------------------+------------------+
 | DeviceClass  |   FriendlyName   |            FullName             |    VendorName    |
@@ -44,7 +62,7 @@ $ pylonctl transport table
 
 ### List of cameras
 
-```terminal
+```console
 $ pylonctl table
 +-----------------------+-----------------+-----------+---------------------------------+------------------------------+--------------+------------+--------------+
 |       FullName        | UserDefinedName | ModelName |          DeviceFactory          |         FriendlyName         | DeviceClass  | VendorName | SerialNumber |
@@ -61,7 +79,7 @@ $ pylonctl table
 
 ### camera information
 
-```terminal
+```console
 $ pylonctl camera --host=10.20.30.40 info
 Address: 10.20.30.40:3956
 DefaultGateway: 10.20.30.254
@@ -85,10 +103,9 @@ VendorName: Basler
 XMLSource: Device
 ```
 
-
 ### camera parameters
 
-```terminal
+```console
 $ pylonctl camera --model=Emulation param tree
 Root
 ├── AOI
@@ -153,7 +170,7 @@ Root
 └── type: group
 ```
 
-```terminal
+```console
 $ pylonctl camera --model=Emulation param tree
 +------------------------------------------+------------------+--------+--------+
 |                   Name                   |      Value       |  Type  | Access |
@@ -177,7 +194,7 @@ $ pylonctl camera --model=Emulation param tree
 
 #### Internal trigger
 
-```terminal
+```console
 pylonctl --log-level=debug camera --model=Emulation acquire -n 3 -e .1
 Acquiring 3 frames on Basler Emulation (0815-0000) (Total acq. time: 0.300s)
 2020-05-04 21:33:30,812 DEBUG MainThread Emulation (0815-0000): OnOpened: Preparing network parameters
@@ -190,7 +207,7 @@ Elapsed time: 0.362473s
 
 #### Software trigger
 
-```terminal
+```console
 pylonctl --log-level=debug camera --model=Emulation acquire -t software -n 3 -e 1
 Acquiring 3 frames on Basler Emulation (0815-0000) (Total acq. time: 3.000s)
 2020-05-04 21:32:42,855 DEBUG MainThread Emulation (0815-0000): OnOpened: Preparing network parameters
