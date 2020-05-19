@@ -426,9 +426,33 @@ def info_table(*objs, filt=None):
     """
     props = set()
     props.update(*(info_names(obj, filt=filt) for obj in objs))
+    props = sorted(props)
     table = BeautifulTable()
     table.column_headers = props
     for obj in objs:
         values = tuple(obj.GetPropertyValue(name)[1] for name in props)
         table.append_row(values)
+    return table
+
+
+def camera_table(filt=None):
+    dev_info_list = transport_factory().EnumerateDevices()
+    garbage = {
+        "DeviceFactory", "SubnetAddress", "IpConfigOptions", "IpConfigCurrent",
+        "DefaultGateway", "SubnetMask"
+    }
+    if filt is None:
+        def filt(x):
+            return x
+    repl = {
+        'DeviceClass': 'Class',
+        'ModelName': 'Name',
+        'UserDefinedName': 'User name',
+        'VendorName': 'Vendor',
+        'FriendlyName': 'Friendly name',
+        'FullName': 'Full name',
+        'SerialNumber': 'Serial Nb.'
+    }
+    table = info_table(*dev_info_list, filt=lambda c: filt(c) and c not in garbage)
+    table.column_headers = [repl.get(name, name) for name in table.column_headers]
     return table
