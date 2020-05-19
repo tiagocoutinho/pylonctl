@@ -86,12 +86,7 @@ def transport_table(max_width, style):
 @style
 def camera_table(max_width, style):
     """list of available cameras"""
-    dev_info_list = transport_factory().EnumerateDevices()
-    garbage = {
-        "DeviceFactory", "SubnetAddress", "IpConfigOptions", "IpConfigCurrent",
-        "DefaultGateway", "SubnetMask"
-    }
-    table = info_table(*dev_info_list, filt=lambda c: c not in garbage)
+    table = camera_table()
     style = getattr(table, "STYLE_" + style.upper())
     table.max_table_width = max_width
     table.set_style(style)
