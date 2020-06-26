@@ -10,9 +10,10 @@ from .camera import (
     Configuration,
     ImageLogger,
     parameter_tree,
+    info_table,
+    camera_table,
     parameter_table,
     iter_parameter_display,
-    info_table,
     transport_factory,
 )
 
@@ -84,7 +85,7 @@ def transport_table(max_width, style):
 @cli.command("table")
 @max_width
 @style
-def camera_table(max_width, style):
+def cam_table(max_width, style):
     """list of available cameras"""
     table = camera_table()
     style = getattr(table, "STYLE_" + style.upper())
