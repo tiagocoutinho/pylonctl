@@ -78,6 +78,14 @@ class Camera:
     def from_model(cls, name):
         return cls(get_icamera_from(ModelName=name))
 
+    @classmethod
+    def from_user_name(cls, user_name):
+        return cls(get_icamera_from(UserDefinedName=user_name))
+
+    @classmethod
+    def from_serial_number(cls, serial_number):
+        return cls(get_icamera_from(SerialNumber=serial_number))
+
     def register_configuration(
         self,
         config,

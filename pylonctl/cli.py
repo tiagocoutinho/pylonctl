@@ -122,6 +122,10 @@ def camera(
         camera = Camera.from_host(host)
     elif model is not None:
         camera = Camera.from_model(model)
+    elif serial is not None:
+        camera = Camera.from_serial_number(serial)
+    elif user_name is not None:
+        camera = Camera.from_user_name(user_name)
     else:
         click.echo("Must give either host, model, serial or user-name", err=True)
         click.exit(2)
