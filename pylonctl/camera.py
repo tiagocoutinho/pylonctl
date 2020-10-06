@@ -5,6 +5,7 @@ import contextlib
 
 from treelib import Tree
 from pypylon import pylon, genicam
+from pypylon.genicam import GenericException, OutOfRangeException
 from beautifultable import BeautifulTable
 
 
@@ -272,6 +273,19 @@ def get_field(v, field, default=None):
     except genicam.GenericException:
         f = default
     return f
+
+
+def parameter_encode(param, value):
+    if isinstance(param, genicam.IInteger):
+        f = int
+    elif isinstance(param, genicam.IFloat):
+        f = float
+    elif isinstance(param, genicam.IString):
+        f = str
+    elif isinstance(param, genicam.IBoolean):
+        f = lambda v: v not in {'false', 'False', 0, None}
+    # TODO: enumeration
+    return f(value)
 
 
 def parameter_display(v):

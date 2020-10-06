@@ -9,9 +9,12 @@ from .camera import (
     Acquisition,
     Configuration,
     ImageLogger,
+    GenericException,
+    OutOfRangeException,
     parameter_tree,
     info_table,
     camera_table,
+    parameter_encode,
     parameter_table,
     iter_parameter_display,
     transport_factory,
@@ -154,6 +157,98 @@ def camera_info(ctx):
 def camera_param():
     """camera parameter related commands"""
 
+
+@camera_param.command("read")
+@click.argument("names", type=str, nargs=-1)
+@click.pass_context
+def camera_param_read(ctx, names):
+    """
+    read the given parameter(s).
+
+    Parameter names are case insensitive
+    Example: pylonctl ... read deviceuserid width height
+    """
+    cam = ctx.obj["camera"]
+    all_pars = {n.lower(): n for n in dir(cam)}
+    try:
+        names = [all_pars[n.lower()] for n in names]
+    except KeyError as error:
+        click.echo("unknown parameter {}".format(error), err=True)
+        ctx.exit(1)
+    with cam:
+        for name in names:
+            click.echo("{} = ".format(name), nl=False)
+            param = getattr(cam, name)
+            try:
+                value = param.GetValue()
+            except GenericException as error:
+                # pylon exceptions are verbose so no need for repr
+                click.secho(
+                    "[{}] {}".format(click.style("ERROR", fg="red"), error)
+                )
+            except Exception as error:
+                click.secho(
+                    "[{}] {!r}".format(click.style("ERROR", fg="red"), error)
+                )
+            else:
+                click.echo(value)
+
+
+@camera_param.command("write")
+@click.argument("params", type=str, nargs=-1)
+@click.pass_context
+def camera_param_write(ctx, params):
+    """
+    write the given parameter(s).
+
+    Each parameter is a tuple <name> <value> (name is case insensitive).
+    Example: pylonctl ... write width 800 Height 600
+    """
+    names, values = params[::2], params[1::2]
+    cam = ctx.obj["camera"]
+    all_pars = {n.lower(): n for n in dir(cam)}
+    try:
+        names = [all_pars[n.lower()] for n in names]
+    except KeyError as error:
+        click.echo("unknown parameter {}".format(error), err=True)
+        ctx.exit(1)
+
+    pars = []
+    for name, value in zip(names, values):
+        param = getattr(cam, name)
+        try:
+            value = parameter_encode(param, value)
+        except:
+            click.echo(
+                "could not translate {!r} value of {!r} to {}".format(
+                    name, value, type(param).__name__),
+                err=True
+            )
+            ctx.exit(3)
+        pars.append((name, param, value))
+
+    with cam:
+        for name, param, value in pars:
+            msg = "Setting {} to {!r}".format(name, value)
+            click.echo("{:.<60} ".format(msg), nl=False)
+            try:
+                param.SetValue(value)
+            except OutOfRangeException as error:
+                error = str(error).split(":")[0]
+                click.secho(
+                    "[{}] {}".format(click.style("ERROR", fg="red"), error)
+                )
+            except GenericException as error:
+                # pylon exceptions are verbose so no need for repr
+                click.secho(
+                    "[{}] {}".format(click.style("ERROR", fg="red"), error)
+                )
+            except Exception as error:
+                click.secho(
+                    "[{}] {!r}".format(click.style("ERROR", fg="red"), error)
+                )
+            else:
+                click.secho("[{}]".format(click.style("DONE", fg="green")))
 
 @camera_param.command("list")
 @filtering
