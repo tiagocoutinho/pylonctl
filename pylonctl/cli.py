@@ -80,7 +80,7 @@ def transport_table(max_width, style):
     tl_list = transport_factory().EnumerateTls()
     table = info_table(*tl_list)
     style = getattr(table, "STYLE_" + style.upper())
-    table.max_table_width = max_width
+    table.maxwidth = max_width
     table.set_style(style)
     click.echo(table)
 
@@ -92,7 +92,7 @@ def cam_table(max_width, style):
     """list of available cameras"""
     table = camera_table()
     style = getattr(table, "STYLE_" + style.upper())
-    table.max_table_width = max_width
+    table.maxwidth = max_width
     table.set_style(style)
     click.echo(table)
 
@@ -297,7 +297,7 @@ def camera_param_table(ctx, filter, style):
     with cam:
         table = parameter_table(cam, filt=filt)
     style = getattr(table, "STYLE_" + style.upper())
-    table.max_table_width = click.get_terminal_size()[0]
+    table.maxwidth = click.get_terminal_size()[0]
     table.set_style(style)
     click.echo(table)
 

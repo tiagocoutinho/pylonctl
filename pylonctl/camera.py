@@ -314,7 +314,7 @@ def node_is_value(v):
 
 def parameter_table(obj, filt=None):
     table = BeautifulTable()
-    table.column_headers = "Name", "Value", "Type", "Access"
+    table.columns.header = "Name", "Value", "Type", "Access"
     for name, value in iter_parameter_values(obj, filt):
         vd = parameter_from_node(value)
         row = (
@@ -323,7 +323,7 @@ def parameter_table(obj, filt=None):
             vd["type"],
             "RO" if vd["readonly"] else "RW",
         )
-        table.append_row(row)
+        table.rows.append(row)
     return table
 
 
@@ -450,10 +450,10 @@ def info_table(*objs, filt=None):
     props.update(*(info_names(obj, filt=filt) for obj in objs))
     props = sorted(props)
     table = BeautifulTable()
-    table.column_headers = props
+    table.columns.header = props
     for obj in objs:
         values = tuple(obj.GetPropertyValue(name)[1] for name in props)
-        table.append_row(values)
+        table.rows.append(values)
     return table
 
 
@@ -476,5 +476,5 @@ def camera_table(filt=None):
         'SerialNumber': 'Serial Nb.'
     }
     table = info_table(*dev_info_list, filt=lambda c: filt(c) and c not in garbage)
-    table.column_headers = [repl.get(name, name) for name in table.column_headers]
+    table.columns.header = [repl.get(name, name) for name in table.columns.header]
     return table

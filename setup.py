@@ -23,7 +23,7 @@ readme = get_readme()
 requirements = [
     "click",
     "prompt_toolkit>=3",
-    "beautifultable",
+    "beautifultable>=1",
     "wcwidth",
     "chronometer",
     "treelib",
