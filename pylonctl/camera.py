@@ -460,8 +460,9 @@ def info_table(*objs, filt=None):
 def camera_table(filt=None):
     dev_info_list = transport_factory().EnumerateDevices()
     garbage = {
-        "DeviceFactory", "SubnetAddress", "IpConfigOptions", "IpConfigCurrent",
-        "DefaultGateway", "SubnetMask"
+        "DeviceFactory", "SubnetAddress",
+        "IpConfigOptions", "IpConfigCurrent", "IpAddress", "PortNr",
+        "DefaultGateway", "SubnetMask", "InterfaceID", "VendorName",
     }
     if filt is None:
         def filt(x):
@@ -470,7 +471,6 @@ def camera_table(filt=None):
         'DeviceClass': 'Class',
         'ModelName': 'Name',
         'UserDefinedName': 'User name',
-        'VendorName': 'Vendor',
         'FriendlyName': 'Friendly name',
         'FullName': 'Full name',
         'SerialNumber': 'Serial Nb.'
