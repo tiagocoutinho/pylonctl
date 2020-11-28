@@ -310,7 +310,7 @@ def parameter_display(v):
 
 def node_is_value(v):
     return isinstance(
-        v, (genicam.IInteger, genicam.IEnumeration, genicam.IBoolean, genicam.IString)
+        v, (genicam.IInteger, genicam.IFloat, genicam.IEnumeration, genicam.IBoolean, genicam.IString)
     )
 
 
