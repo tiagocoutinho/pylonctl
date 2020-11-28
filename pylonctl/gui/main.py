@@ -2,6 +2,7 @@ import logging
 import threading
 
 from PyQt5 import Qt, uic
+import numpy
 import pyqtgraph
 import pkg_resources
 
@@ -12,7 +13,7 @@ from pylonctl.camera import Acquisition
 UI = pkg_resources.resource_filename("pylonctl.gui", "gui.ui")
 
 
-def acq_loop(camera, source, nb_frames, exposure, latency, roi, binning):
+def iter_acq(camera, nb_frames, exposure, latency, roi, binning):
     logging.info("starting acquisition task...")
     logging.info("  start preparing camera...")
     try:
@@ -20,8 +21,7 @@ def acq_loop(camera, source, nb_frames, exposure, latency, roi, binning):
             logging.info("  finished preparing camera")
             logging.info("  start acquisition...")
             acq.start()
-            for frame in acq:
-                source.frame.emit(frame)
+            yield from acq
             logging.info("  finished acquisition")
     except Exception as error:
         logging.error("Error while acquiring: %r", error)
@@ -47,6 +47,7 @@ def load_gui(widget=None, camera=None, source=None):
         widget.h_spin.setValue(widget.h_spin.maximum())
 
     def on_start():
+        logging.info("on start")
         nb_frames = widget.nb_frames.value()
         exposure = widget.exposure_time.value()
         latency = widget.latency.value()
@@ -60,26 +61,22 @@ def load_gui(widget=None, camera=None, source=None):
             binning = (widget.h_bin_spin.value(), widget.v_bin_spin.value())
         else:
             binning = None
-        widget.task = threading.Thread(
-            target=acq_loop,
-            args=(
-                widget.camera,
-                widget.source,
-                nb_frames,
-                exposure,
-                latency,
-                roi,
-                binning,
-            ),
-        )
-        widget.task.daemon = True
-        widget.task.start()
+
+        def acq_loop():
+            for frame in iter_acq(camera, nb_frames, exposure, latency, roi, binning):
+                source.newFrame.emit(frame)
+
+        nonlocal task
+        task = threading.Thread(target=acq_loop)
+        task.daemon = True
+        task.start()
 
     def on_stop():
         camera.StopGrabbing()
-        if widget.task:
-            widget.task.join()
+        if task:
+            task.join()
 
+    task = None
     widget.on_update_freq = on_update_freq
     widget.on_reset_roi = on_reset_roi
     widget.on_start = on_start
@@ -88,26 +85,25 @@ def load_gui(widget=None, camera=None, source=None):
     def on_frame(frame):
         try:
             if frame.GrabSucceeded():
-                widget.img.setImage(frame.Array)
+                image_item.setImage(frame.Array)
         except Exception:
             pass
 
     uic.loadUi(UI, baseinstance=widget)
 
-    widget.source = QFrameSource()
-    widget.vb = pyqtgraph.ViewBox()
-    widget.canvas.setCentralItem(widget.vb)
-    widget.img = pyqtgraph.ImageItem()
-    widget.vb.addItem(widget.img)
+    if source is None:
+        source = QFrameSource()
+    vb = widget.canvas.addViewBox()
+    image_item = pyqtgraph.ImageItem()
+    vb.addItem(image_item)
 
-    widget.source.frame.connect(on_frame)
-    widget.camera = camera
+    source.newFrame.connect(on_frame)
 
     if camera:
         widget.setWindowTitle(
             "{} - {}".format(widget.windowTitle(), camera.device_info.GetFullName())
         )
-    widget.nb_frames.setValue(10)
+    widget.nb_frames.setValue(0)
     widget.exposure_time.setValue(0.01)
     widget.latency.setValue(0.1 - widget.exposure_time.value())
 
@@ -127,7 +123,7 @@ def load_gui(widget=None, camera=None, source=None):
 
 class QFrameSource(Qt.QObject):
 
-    frame = Qt.pyqtSignal(object)
+    newFrame = Qt.pyqtSignal(object)
 
 
 class GUI(Qt.QMainWindow):
