@@ -65,7 +65,9 @@ class Camera:
         self.icam.Close()
 
     def __dir__(self):
-        return ["device_info", "from_host"] + dir(self.icam)
+        members = {i for i in dir(self.icam) if not i.startswith("_")}
+        members.update(dir(type(self)))
+        return sorted(members)
 
     @property
     def device_info(self):
