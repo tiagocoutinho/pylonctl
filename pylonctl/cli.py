@@ -131,10 +131,10 @@ def camera(
         camera = Camera.from_user_name(user_name)
     else:
         click.echo("Must give either host, model, serial or user-name", err=True)
-        click.exit(2)
+        exit(2)
     if camera is None:
         click.echo("Could not find camera", err=True)
-        click.exit(1)
+        exit(1)
     config = Configuration()
     config.packet_size = packet_size
     config.inter_packet_delay = inter_packet_delay
