@@ -88,6 +88,9 @@ def load_gui(widget=None, camera=None, source=None):
                 image_item.setImage(frame.Array)
         except Exception:
             pass
+        finally:
+            frame.Release()
+
 
     uic.loadUi(UI, baseinstance=widget)
 
