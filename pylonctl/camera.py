@@ -5,7 +5,7 @@ import contextlib
 
 from treelib import Tree
 from pypylon import pylon, genicam
-from pypylon.genicam import GenericException, OutOfRangeException
+from pypylon.genicam import GenericException, OutOfRangeException, NI, NA, WO, RO, RW
 from beautifultable import BeautifulTable
 
 
@@ -255,10 +255,6 @@ class ImageLogger(pylon.ImageEventHandler):
         else:
             error = result.GetErrorDescription()
             log.error("Error grabbing: %s", error)
-
-
-# Access mode: NotImplemented, NotAvailable, WriteOnly, ReadOnly, ReadWrite
-NI, NA, WO, RO, RW = range(5)
 
 
 def iter_parameter_values(obj, filt=None):
