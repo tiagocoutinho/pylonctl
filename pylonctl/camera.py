@@ -114,7 +114,7 @@ def ensure_grab_stop(camera):
         camera.StopGrabbing()
 
 
-def prepare_acq(camera, exposure, latency, roi=None, binning=None):
+def prepare_acq(camera, exposure, latency, roi=None, binning=(1, 1), pixel_format="Mono8"):
     camera.ExposureTimeAbs = exposure * 1e6
     if latency < 1e-6:
         camera.AcquisitionFrameRateEnable = False
@@ -122,25 +122,25 @@ def prepare_acq(camera, exposure, latency, roi=None, binning=None):
         camera.AcquisitionFrameRateEnable = True
         period = latency + exposure
         camera.AcquisitionFrameRateAbs = 1 / period
+    # first reset binning, offset and size
+    camera.BinningHorizontal = 1
+    camera.BinningVertical = 1
+    camera.OffsetX = 0
+    camera.OffsetY = 0
+    camera.Width = camera.WidthMax.Value
+    camera.Height = camera.HeightMax.Value
+    camera.PixelFormat = pixel_format
+    if roi is None:
+        roi = 0, 0, camera.WidthMax.Value, camera.HeightMax.Value
+    x, y, w, h = roi
+    camera.Width = w
+    camera.Height = h
+    camera.OffsetX = x
+    camera.OffsetY = y
     ww, hh = camera.Width.Value, camera.Height.Value
-    if binning is not None:
-        bh, bv = binning
-        camera.BinningHorizontal = bh
-        camera.BinningVertical = bv
-    if roi is not None:
-        x, y, w, h = roi
-        if ww > w:
-            camera.Width = w
-            camera.OffsetX = x
-        else:
-            camera.OffsetX = x
-            camera.Width = w
-        if hh > h:
-            camera.Height = h
-            camera.OffsetY = y
-        else:
-            camera.OffsetY = y
-            camera.Height = h
+    bh, bv = binning
+    camera.BinningHorizontal = bh
+    camera.BinningVertical = bv
 
 
 TRIGGER_SOURCE_MAP = {"internal": "Off", "line1": "Line1", "software": "Software"}
@@ -171,7 +171,8 @@ class Acquisition:
         exposure,
         latency,
         roi=None,
-        binning=None,
+        binning=(1, 1),
+        pixel_format="Mono8",
         trigger="internal",
     ):
         self.camera = camera
@@ -183,7 +184,7 @@ class Acquisition:
         self.roi = roi
         self.binning = binning
         self.prepare = functools.partial(
-            prepare_acq, camera, exposure, latency, roi, binning
+            prepare_acq, camera, exposure, latency, roi, binning, pixel_format
         )
         if nb_frames:
             self.start = functools.partial(camera.StartGrabbingMax, nb_frames)
@@ -223,11 +224,13 @@ class Configuration(pylon.ConfigurationEventHandler):
         try:
             self.apply_config(camera)
         except Exception:
-            log = logging.getLogger(camera.GetDeviceInfo().GetFullName())
+            name = camera.GetDeviceInfo().GetUserDefinedName()
+            log = logging.getLogger(name)
             log.exception("OnOpened error")
 
     def apply_config(self, camera):
-        log = logging.getLogger(camera.GetDeviceInfo().GetFullName())
+        name = camera.GetDeviceInfo().GetUserDefinedName()
+        log = logging.getLogger(name)
         log.debug("OnOpened: Preparing network parameters")
         if camera.IsGigE():
             camera.GevSCPSPacketSize = self.packet_size
@@ -243,12 +246,15 @@ class Configuration(pylon.ConfigurationEventHandler):
 
 
 class ImageLogger(pylon.ImageEventHandler):
+
     def OnImageSkipped(self, camera, nb_skipped):
-        log = logging.getLogger(camera.GetDeviceInfo().GetFullName())
+        name = camera.GetDeviceInfo().GetUserDefinedName()
+        log = logging.getLogger(name)
         log.error("Skipped %d images", nb_skipped)
 
     def OnImageGrabbed(self, camera, result):
-        log = logging.getLogger(camera.GetDeviceInfo().GetFullName())
+        name = camera.GetDeviceInfo().GetUserDefinedName()
+        log = logging.getLogger(name)
         if result.GrabSucceeded():
             data = result.Array
             log.info("Grabbed %s %s", data.shape, data.dtype)

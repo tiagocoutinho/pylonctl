@@ -30,6 +30,7 @@ requirements = [
     "pypylon",
     "numpy",
     "PyQt5",
+    "emoji",
 ]
 
 test_requirements = ["pytest", "pytest-cov"]
