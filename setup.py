@@ -30,6 +30,7 @@ requirements = [
     "pypylon",
     "numpy",
     "PyQt5",
+    "emoji",
 ]
 
 extras_require = {

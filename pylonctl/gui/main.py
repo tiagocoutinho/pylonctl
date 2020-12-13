@@ -43,8 +43,8 @@ def load_gui(widget=None, camera=None, source=None):
     def on_reset_roi():
         widget.x_spin.setValue(0)
         widget.y_spin.setValue(0)
-        widget.w_spin.setValue(widget.w_spin.maximum())
-        widget.h_spin.setValue(widget.h_spin.maximum())
+        widget.w_spin.setValue(camera.WidthMax.Value)
+        widget.h_spin.setValue(camera.HeightMax.Value)
 
     def on_start():
         logging.info("on start")
