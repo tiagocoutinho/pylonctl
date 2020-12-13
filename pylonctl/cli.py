@@ -336,7 +336,8 @@ def general_acquisition(ctx, trigger, nb_frames, exposure, latency, roi, binning
     click.echo(msg)
     with camera:
         with Acquisition(
-            camera, nb_frames, exposure, latency, roi=roi, trigger=trigger
+            camera, nb_frames, exposure, latency, roi=roi, trigger=trigger,
+            binning=binning
         ) as acq:
             acq.start()
             try:
