@@ -123,8 +123,11 @@ def prepare_acq(camera, exposure, latency, roi=None, binning=(1, 1), pixel_forma
         period = latency + exposure
         camera.AcquisitionFrameRateAbs = 1 / period
     # first reset binning, offset and size
-    camera.BinningHorizontal = 1
-    camera.BinningVertical = 1
+    try:
+        camera.BinningHorizontal = 1
+        camera.BinningVertical = 1
+    except genicam.LogicalErrorException:
+        pass
     camera.OffsetX = 0
     camera.OffsetY = 0
     camera.Width = camera.WidthMax.Value
@@ -139,8 +142,9 @@ def prepare_acq(camera, exposure, latency, roi=None, binning=(1, 1), pixel_forma
     camera.OffsetY = y
     ww, hh = camera.Width.Value, camera.Height.Value
     bh, bv = binning
-    camera.BinningHorizontal = bh
-    camera.BinningVertical = bv
+    if (bh, bv) != (1, 1):
+        camera.BinningHorizontal = bh
+        camera.BinningVertical = bv
 
 
 TRIGGER_SOURCE_MAP = {"internal": "Off", "line1": "Line1", "software": "Software"}
@@ -198,7 +202,7 @@ class Acquisition:
         camera = self.camera
         if not camera.IsGrabbing():
             raise StopIteration()
-        wait_ms = int(self.period * 1000) + 250
+        wait_ms = int((self.period + 1) * 1000)
         if self.trigger == "software":
             camera.WaitForFrameTriggerReady(100, pylon.TimeoutHandling_ThrowException)
             camera.ExecuteSoftwareTrigger()
