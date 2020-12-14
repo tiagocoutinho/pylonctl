@@ -10,7 +10,7 @@ from pypylon import genicam
 from pylonctl.camera import Acquisition
 
 
-UI = pkg_resources.resource_filename("pylonctl.gui", "gui.ui")
+UI = pkg_resources.resource_filename("pylonctl.gui", "main.ui")
 
 
 def iter_acq(camera, nb_frames, exposure, latency, roi, binning):
