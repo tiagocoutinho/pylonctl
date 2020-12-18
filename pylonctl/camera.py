@@ -187,13 +187,21 @@ class Acquisition:
         self.period = exposure + latency
         self.roi = roi
         self.binning = binning
-        self.prepare = functools.partial(
-            prepare_acq, camera, exposure, latency, roi, binning, pixel_format
-        )
+        self.pixel_format = pixel_format
+        self.prepared = False
         if nb_frames:
             self.start = functools.partial(camera.StartGrabbingMax, nb_frames)
         else:
             self.start = camera.StartGrabbing
+
+    def prepare(self):
+        if self.prepared:
+            return
+        prepare_acq(
+            self.camera, self.exposure, self.latency, self.roi,
+            self.binning, self.pixel_format
+        )
+        self.prepared = True
 
     def __iter__(self):
         return self
