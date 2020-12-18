@@ -1,0 +1,21 @@
+cameras:
+#- name: ace1
+#  user_name: ace1
+- name: sim1
+  serial_number: 0815-0000
+#- name: sim2
+#  serial_number: 0815-0001
+
+views:
+  - name: main
+    layout:
+    - sources: [sim1/image]
+      location: [0, 0]
+#    - sources: [sim2/image]
+#      location: [0, 1]
+    - sources: [sim1/profile-x]
+      location: [0, 1]
+    - sources: [sim1/profile-y]
+      location: [1, 0]
+#    - sources: [sim2/profile-y]
+#      location: [1, 1]
