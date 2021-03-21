@@ -33,6 +33,10 @@ requirements = [
     "emoji",
 ]
 
+extras_require = {
+    "lima": ["lima-toolbox"],  # one day lima may be in pypi
+}
+
 test_requirements = ["pytest", "pytest-cov"]
 
 setup_requirements = []
@@ -52,9 +56,20 @@ setup(
         "Programming Language :: Python :: 3.8",
         "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
     ],
+    entry_points={
+        "console_scripts": [
+            "pylonctl = pylonctl.cli:cli",
+        ],
+        "limatb.cli.camera": [
+            'Pylon=pylonctl.lima.cli:pylon [lima]'
+        ],
+        "limatb.cli.camera.scan": [
+            "Pylon=pylonctl.lima.cli:scan [lima]"
+        ],
+    },
     description="pylon control CLI",
-    entry_points={"console_scripts": ["pylonctl = pylonctl.cli:cli",],},
     install_requires=requirements,
+    extras_require=extras_require,
     long_description=readme,
     long_description_content_type="text/markdown",
     include_package_data=True,
