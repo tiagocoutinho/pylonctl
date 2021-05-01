@@ -1,3 +1,4 @@
+import math
 import socket
 import logging
 import functools
@@ -5,7 +6,7 @@ import contextlib
 
 from treelib import Tree
 from pypylon import pylon, genicam
-from pypylon.genicam import GenericException, OutOfRangeException, NI, NA, WO, RO, RW
+from pypylon.genicam import WO, RO, RW
 from beautifultable import BeautifulTable
 
 
@@ -115,7 +116,18 @@ def ensure_grab_stop(camera):
 
 
 def prepare_acq(camera, exposure, latency, roi=None, binning=(1, 1), pixel_format="Mono8"):
-    camera.ExposureTimeAbs = exposure * 1e6
+    try:
+        camera.ExposureTime = exposure * 1e6
+    except genicam.LogicalErrorException:
+        try:
+            # ace Classic/U/L GigE Cameras
+            camera.ExposureTimeAbs = exposure * 1e6
+        except genicam.LogicalErrorException:
+            # For older cameras (scout, pilot) exposure time with:
+            camera.ExposureTimeBaseAbs = 100.0
+            raw = math.ceil(exposure / 50.0)
+            camera.ExposureTimeRaw = int(raw)
+            camera.ExposureTimeBaseAbs = (exposure / raw) * 1e6
     if latency < 1e-6:
         camera.AcquisitionFrameRateEnable = False
     else:
