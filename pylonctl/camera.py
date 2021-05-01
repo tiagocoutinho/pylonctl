@@ -5,7 +5,7 @@ import contextlib
 
 from treelib import Tree
 from pypylon import pylon, genicam
-from pypylon.genicam import GenericException, OutOfRangeException, NI, NA, WO, RO, RW
+from pypylon.genicam import WO, RO, RW
 from beautifultable import BeautifulTable
 
 
