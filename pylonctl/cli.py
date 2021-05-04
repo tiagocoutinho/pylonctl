@@ -351,7 +351,7 @@ def camera_acquisition(ctx, trigger, nb_frames, exposure, latency, roi, binning,
     if roi is not None:
         roi = [int(i) for i in roi.split(",")]
         assert len(roi) == 4
-    movie_camera = emoji.EMOJI_ALIAS_UNICODE[":movie_camera:"]
+    movie_camera = emoji.emojize(":movie_camera:")
     title = f"{movie_camera} Acquiring {nb_frames} frames"
     if nb_frames:
         total_time = nb_frames * (exposure + latency)
