@@ -31,6 +31,7 @@ requirements = [
     "numpy",
     "PyQt5",
     "emoji",
+    "pyqtgraph",
 ]
 
 test_requirements = ["pytest", "pytest-cov"]
