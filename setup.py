@@ -59,6 +59,9 @@ setup(
     long_description=readme,
     long_description_content_type="text/markdown",
     include_package_data=True,
+    package_data={
+        "": ["*.ui"],
+    },
     keywords="pylon,CLI",
     name="pylonctl",
     packages=find_packages(),
